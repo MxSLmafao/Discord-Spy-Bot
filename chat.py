@@ -47,78 +47,21 @@ async def on_message(message):
     if message.channel == selected_channel and not pause_display:
         if message.author != client.user:
             print(f"{message.author.display_name}: {message.content}")
-    
-    # Handle the $rm command
-    if message.content.startswith('$rm'):
-        await handle_rm(message)
 
-async def handle_rm(message):
-    """List suggestions and allow the user to delete one by selecting a number."""
-    # Check if the user has admin permissions
-    if str(message.author.id) not in admin_user_ids:
-        await message.channel.send("You don't have permission to use this command.")
-        return
-
-    suggestion_channel = client.get_channel(suggestion_channel_id)
-    
-    if suggestion_channel is None:
-        await message.channel.send("Unable to find the suggestion channel.")
-        return
-    
-    # Fetch the last 100 suggestions
-    suggestions = []
-    async for msg in suggestion_channel.history(limit=100):
-        if msg.author == client.user and msg.embeds:
-            suggestions.append(msg)
-
-    if not suggestions:
-        await message.channel.send("No suggestions found.")
-        return
-    
-    # List suggestions with numbers
-    list_message = "Suggestions:\n"
-    for i, suggestion_msg in enumerate(suggestions, start=1):
-        embed = suggestion_msg.embeds[0]
-        list_message += f"{i}. {embed.description}\n"
-    
-    await message.channel.send(list_message)
-    
-    # Ask the user which suggestion to delete
-    await message.channel.send("Enter the number of the suggestion to delete:")
-
-    def check(m):
-        return m.author == message.author and m.content.isdigit()
-
-    try:
-        response = await client.wait_for('message', check=check, timeout=30.0)
-        suggestion_num = int(response.content) - 1
-
-        if 0 <= suggestion_num < len(suggestions):
-            await suggestions[suggestion_num].delete()
-            await message.channel.send(f"Suggestion {suggestion_num + 1} has been deleted.")
-        else:
-            await message.channel.send("Invalid selection.")
-    except asyncio.TimeoutError:
-        await message.channel.send("You took too long to respond.")
-
-# Monitor channel in read-only mode
-async def monitor_channel():
-    """Continuously listen for new messages in the selected channel and display them."""
-    async for message in selected_channel.history(limit=10, oldest_first=False):
-        if message.author != client.user:
-            print(f"{message.author.display_name}: {message.content}")
-
-# Monitor channel for both mode (view and send messages alternately)
 async def monitor_channel_both_mode():
-    """ Continuously listen for new messages in the selected channel and display them unless paused. """
+    """Continuously listen for new messages in the selected channel and display them unless paused."""
     global pause_display
     async for message in selected_channel.history(limit=10, oldest_first=False):
         if message.author != client.user:
             print(f"{message.author.display_name}: {message.content}")
 
-# Toggle chat input in both mode
+    @client.event
+    async def on_message(message):
+        if message.channel == selected_channel and message.author != client.user and not pause_display:
+            print(f"{message.author.display_name}: {message.content}")
+
 async def toggle_chat_in_both_mode():
-    """ Alternates between message display and input in Both Mode."""
+    """Alternates between message display and input in Both Mode."""
     global pause_display
     while True:
         # Display a message to ask for input asynchronously
@@ -139,7 +82,6 @@ async def toggle_chat_in_both_mode():
             print(f"Message sent to {selected_channel.name}")
             pause_display = False  # Resume message display
 
-# Send messages in chat mode
 async def send_messages():
     """Allow the user to send messages by typing in the console."""
     while True:
@@ -156,14 +98,12 @@ async def send_messages():
             await selected_channel.send(message_content)
             print(f"Message sent to {selected_channel.name}")
 
-async def check_permissions(channel):
-    permissions = channel.permissions_for(channel.guild.me)  # Get bot's permissions for the channel
-    if not permissions.read_messages or not permissions.read_message_history:
-        print(f"Bot doesn't have permission to read messages in {channel.name}")
-        return False
-    return True
+async def monitor_channel():
+    """Continuously listen for new messages in the selected channel and display them."""
+    async for message in selected_channel.history(limit=10, oldest_first=False):
+        if message.author != client.user:
+            print(f"{message.author.display_name}: {message.content}")
 
-# Show messages from past 10 minutes or the last 20 messages if none found
 async def show_past_messages():
     """Fetch and display messages from the past 10 minutes, with a fallback to last 20 messages."""
     if not await check_permissions(selected_channel):
@@ -191,6 +131,13 @@ async def show_past_messages():
     
     print("Finished displaying messages.")
     await select_guild()
+
+async def check_permissions(channel):
+    permissions = channel.permissions_for(channel.guild.me)  # Get bot's permissions for the channel
+    if not permissions.read_messages or not permissions.read_message_history:
+        print(f"Bot doesn't have permission to read messages in {channel.name}")
+        return False
+    return True
 
 async def select_guild():
     """Prompt the user to select a guild."""
